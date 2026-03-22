@@ -1,0 +1,221 @@
+// Prisma schema for Admin model (Prisma v6 syntax)
+
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "mysql"
+    url      = env("DATABASE_URL")
+}
+
+model Admin {
+    id        Int      @id @default(autoincrement())
+    name      String
+    email     String   @unique
+    mobile    String   @unique
+    password  String
+    role      Role     @default(ADMIN)
+    isActive  Boolean  @default(true)
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+}
+
+enum Role {
+    ADMIN
+    SUPER_ADMIN
+}
+
+model Category {
+    id          Int                  @id @default(autoincrement())
+    name        String               @unique
+    icon        String?
+    isActive    Boolean              @default(true)
+    createdAt   DateTime             @default(now())
+    updatedAt   DateTime             @updatedAt
+    technicians TechnicianCategory[]
+    jobs        Job[]
+    spares      Spare[]
+}
+
+model Technician {
+    id         Int                  @id @default(autoincrement())
+    name       String
+    mobile     String               @unique
+    email      String?
+    password   String
+    status     TechnicianStatus     @default(ACTIVE)
+    isActive   Boolean              @default(true)
+    createdAt  DateTime             @default(now())
+    updatedAt  DateTime             @updatedAt
+    experience Int
+    rating     Float
+    categories TechnicianCategory[]
+    jobs       Job[]
+    customSpareRequests CustomSpareRequest[]
+    wallet     Wallet?
+    walletTransactions WalletTransaction[]
+    payouts    Payout[]
+}
+
+enum TechnicianStatus {
+    ACTIVE
+    INACTIVE
+    WARNING
+    BLOCKED
+    SUSPENDED
+}
+
+model TechnicianCategory {
+    id           Int        @id @default(autoincrement())
+    technician   Technician @relation(fields: [technicianId], references: [id])
+    technicianId Int
+    category     Category   @relation(fields: [categoryId], references: [id])
+    categoryId   Int
+
+    @@unique([technicianId, categoryId])
+}
+
+model Job {
+    id              Int          @id @default(autoincrement())
+    jobCode         String       @unique
+    customerName    String
+    customerPhone   String
+    address         String
+    description     String
+    category        Category     @relation(fields: [categoryId], references: [id])
+    categoryId      Int
+    technician      Technician?  @relation(fields: [technicianId], references: [id])
+    technicianId    Int?
+    status          JobStatus    @default(CREATED)
+    scheduleTime    DateTime
+    totalAmount     Float        @default(0)
+    technicianShare Float        @default(0)
+    companyShare    Float        @default(0)
+    isDeleted       Boolean      @default(false)
+    beforeImage     String?
+    afterImage      String?
+    jobStartTime    DateTime?
+    jobEndTime      DateTime?
+    otpCode         String?
+    otpVerified     Boolean      @default(false)
+    createdAt       DateTime     @default(now())
+    updatedAt       DateTime     @updatedAt
+    payments        Payment[]
+    spareUsages     SpareUsage[]
+}
+
+model Spare {
+    id           Int             @id @default(autoincrement())
+    name         String
+    sku          String          @unique
+    category     Category?       @relation(fields: [categoryId], references: [id])
+    categoryId   Int?
+    costPrice    Float
+    sellingPrice Float
+    stockQty     Int             @default(0)
+    minStock     Int             @default(5)
+    isActive     Boolean         @default(true)
+    createdAt    DateTime        @default(now())
+    updatedAt    DateTime        @updatedAt
+    usages       SpareUsage[]
+    stockLogs    SpareStockLog[]
+}
+
+model SpareUsage {
+    id         Int      @id @default(autoincrement())
+    jobId      Int
+    spareId    Int
+    quantity   Int
+    totalPrice Float
+    createdAt  DateTime @default(now())
+
+    job   Job   @relation(fields: [jobId], references: [id])
+    spare Spare @relation(fields: [spareId], references: [id])
+}
+
+model SpareStockLog {
+    id        Int      @id @default(autoincrement())
+    spareId   Int
+    changeQty Int
+    type      String // ADD / DEDUCT
+    note      String?
+    createdAt DateTime @default(now())
+
+    spare Spare @relation(fields: [spareId], references: [id])
+}
+
+model Payment {
+    id            Int      @id @default(autoincrement())
+    job           Job      @relation(fields: [jobId], references: [id])
+    jobId         Int
+    amount        Float
+    method        String   // CASH / UPI / ONLINE
+    status        String   @default("PENDING") // PENDING / PAID / FAILED
+    transactionId String?
+    paidAt        DateTime?
+    createdAt     DateTime @default(now())
+    updatedAt     DateTime @updatedAt
+}
+
+model Wallet {
+    id           Int        @id @default(autoincrement())
+    technicianId Int        @unique
+    balance      Float      @default(0)
+    createdAt    DateTime   @default(now())
+    updatedAt    DateTime   @updatedAt
+
+    technician Technician @relation(fields: [technicianId], references: [id])
+}
+
+model WalletTransaction {
+    id           Int      @id @default(autoincrement())
+    technicianId Int
+    amount       Float
+    type         String   // CREDIT / DEBIT
+    source       String   // JOB / PAYOUT
+    referenceId  Int?
+    description  String?
+    createdAt    DateTime @default(now())
+
+    technician Technician @relation(fields: [technicianId], references: [id])
+}
+
+model Payout {
+    id           Int      @id @default(autoincrement())
+    technicianId Int
+    amount       Float
+    status       String   @default("PENDING") // PENDING / APPROVED / PAID
+    adminNote    String?
+    createdAt    DateTime @default(now())
+    updatedAt    DateTime @updatedAt
+
+    technician Technician @relation(fields: [technicianId], references: [id])
+}
+
+enum JobStatus {
+    CREATED
+    ASSIGNED
+    ACCEPTED
+    IN_PROGRESS
+    WAITING_APPROVAL
+    WAITING_OTP
+    COMPLETED
+    CLOSED
+}
+
+model CustomSpareRequest {
+    id           Int        @id @default(autoincrement())
+    technicianId Int
+    jobId        Int?
+    name         String
+    category     String
+    reason       String
+    image        String?
+    status       String     @default("PENDING") // PENDING, APPROVED, REJECTED
+    adminNote    String?
+    createdAt    DateTime   @default(now())
+    updatedAt    DateTime   @updatedAt
+
+    technician   Technician @relation(fields: [technicianId], references: [id])
+}
